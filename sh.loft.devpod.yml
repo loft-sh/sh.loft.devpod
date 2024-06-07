@@ -1,0 +1,125 @@
+---
+app-id: sh.loft.devpod
+runtime: org.gnome.Platform
+runtime-version: '46'
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+  - org.freedesktop.Sdk.Extension.node20
+  - org.freedesktop.Sdk.Extension.golang
+
+command: dev-pod
+rename-icon: dev-pod
+finish-args:
+  - --socket=wayland
+  - --socket=fallback-x11
+  # - --socket=x11
+  # - --socket=pulseaudio
+  - --share=ipc
+  - --share=network
+  - --filesystem=home
+  - --talk-name=org.freedesktop.Flatpak
+  - --talk-name=org.freedesktop.Notifications
+  - --talk-name=org.kde.StatusNotifierWatcher
+  - --filesystem=xdg-run/keyring
+  - --device=dri
+
+build-options:
+  append-path: /usr/lib/sdk/node20/bin:/usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/golang/bin
+
+modules:
+  - shared-modules/libappindicator/libappindicator-gtk3-12.10.json
+
+  - name: webkit2gtk-4.0
+    sources:
+      - type: archive
+        url: https://webkitgtk.org/releases/webkitgtk-2.44.0.tar.xz
+        sha256: c66530e41ba59b1edba4ee89ef20b2188e273bed0497e95084729e3cfbe30c87
+        x-checker-data:
+          type: html
+          url: https://webkitgtk.org/releases/
+          version-pattern: LATEST-STABLE-(\d[\.\d]+\d)
+          url-template: https://webkitgtk.org/releases/webkitgtk-$version.tar.xz
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DPORT=GTK
+      - -DCMAKE_BUILD_TYPE=RelWithDebInfo
+      - -DENABLE_DOCUMENTATION=OFF
+      - -DENABLE_MINIBROWSER=OFF
+      - -DENABLE_WEBDRIVER=OFF
+      - -DENABLE_GAMEPAD=OFF
+      - -DUSE_LIBBACKTRACE=OFF
+      - -DUSE_GTK4=OFF
+      - -DUSE_SOUP2=ON
+      - -DENABLE_BUBBLEWRAP_SANDBOX=OFF
+
+    modules:
+      - shared-modules/libsoup/libsoup-2.4.json
+
+      - name: unifdef
+        no-autogen: true
+        make-install-args:
+          - prefix=${FLATPAK_DEST}
+        sources:
+          - type: archive
+            url: https://dotat.at/prog/unifdef/unifdef-2.12.tar.xz
+            sha256: 43ce0f02ecdcdc723b2475575563ddb192e988c886d368260bc0a63aee3ac400
+        cleanup:
+          - '*'
+
+      - name: libjxl
+        buildsystem: cmake
+        config-opts:
+          - -DCMAKE_BUILD_TYPE=Release
+          - -DBUILD_TESTING=OFF
+        sources:
+          - type: git
+            url: https://github.com/libjxl/libjxl.git
+            tag: v0.10.2
+            commit: e1489592a770b989303b0edc5cc1dc447bbe0515
+            disable-shallow-clone: true
+            x-checker-data:
+              type: git
+              tag-pattern: ^v([\d.]+)$
+
+  - name: Devpod
+    buildsystem: simple
+    build-options:
+      env:
+        CARGO_HOME: /run/build/devpod/cargo
+        npm_config_offline: 'true'
+    sources:
+      - type: dir
+        path: "../devpod"
+      # - type: git
+      #   url: https://github.com/loft-sh/devpod
+      #   tag: v0.5.12
+      - 'node-sources.json'
+      - 'cargo-sources.json'
+      - type: file
+        path: devpod-wrapper
+      - type: file
+        path: sh.loft.devpod.appdata.xml
+      - type: file
+        path: sh.loft.devpod.handler.desktop
+      - type: shell
+        commands:
+          - mkdir .cargo
+          - cp cargo/config .cargo
+    build-commands:
+      - chmod +x ./hack/rebuild.sh
+      - BUILD_PLATFORMS=linux SKIP_INSTALL=1 RELEASE_VERSION=v0.5.12 ./hack/rebuild.sh
+      - cd desktop && HOME=$PWD yarn config --offline set yarn-offline-mirror $FLATPAK_BUILDER_BUILDDIR/flatpak-node/yarn-mirror
+      - cd desktop && yarn --offline
+      - cd desktop && cargo fetch --offline --frozen --locked --manifest-path src-tauri/Cargo.toml
+      - cd desktop && yarn run tauri build --config src-tauri/tauri-linux.conf.json -b deb --target x86_64-unknown-linux-gnu
+      - install -Dm755 -t /app/bin/ desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/deb/*/data/usr/bin/*
+      - mkdir -p /app/share/icons/hicolor /app/share/applications/
+      - cp -r desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/deb/*/data/usr/share/icons/hicolor/* /app/share/icons/hicolor/
+      - cp desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/deb/*/data/usr/share/applications/* /app/share/applications/sh.loft.devpod.desktop
+      - mv /app/share/icons/hicolor/256x256@2/ /app/share/icons/hicolor/256x256/
+      - mv /app/bin/devpod-cli /app/bin/devpod-bin
+      - cp devpod-wrapper /app/bin/devpod-cli
+      - chmod +x /app/bin/devpod-cli
+      - install -Dm644 -t /app/share/applications/ sh.loft.devpod.handler.desktop
+      - install -Dm644 -t /app/share/metainfo/ sh.loft.devpod.appdata.xml

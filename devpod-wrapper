@@ -1,0 +1,20 @@
+#!/bin/sh
+
+# If we're outside the flatpak, we will run the flatpak command
+if [ ! -e /.flatpak-info ]; then
+	exec flatpak run --branch=master --arch=x86_64 --command=devpod-cli sh.loft.devpod "$@"
+fi
+
+# copy over the binary file if absend
+if [ ! -e "${XDG_DATA_HOME}/devpod-cli" ]; then
+	cp /app/bin/devpod-bin "${XDG_DATA_HOME}/devpod-cli"
+else
+	# or if it differs IE after an update
+	if ! cmp --silent /app/bin/devpod-bin "${XDG_DATA_HOME}/devpod-cli"; then
+		rm -f "${XDG_DATA_HOME}/devpod-cli"
+		cp /app/bin/devpod-bin "${XDG_DATA_HOME}/devpod-cli"
+	fi
+fi
+# We need to have it into this path so that the host is able to open it with flatpak-spawn
+#
+/usr/bin/flatpak-spawn --host "${XDG_DATA_HOME}/devpod-cli" "$@"

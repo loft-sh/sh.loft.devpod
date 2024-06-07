@@ -1,0 +1,8 @@
+*.flatpak
+.pyenv
+.flatpak-builder
+.repo
+.venv
+build
+build-dir
+flatpak-cargo-generator.py

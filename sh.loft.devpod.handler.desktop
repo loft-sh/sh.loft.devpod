@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=devpod
+Exec=/app/bin/dev-pod %u
+Terminal=false
+MimeType=x-scheme-handler/devpod;
+NoDisplay=true
