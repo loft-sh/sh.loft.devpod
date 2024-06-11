@@ -88,12 +88,13 @@ modules:
       env:
         CARGO_HOME: /run/build/devpod/cargo
         npm_config_offline: 'true'
+        DEVPOD_VERSION: "0.5.12"
     sources:
       - type: dir
         path: "../devpod"
       # - type: git
       #   url: https://github.com/loft-sh/devpod
-      #   tag: v0.5.12
+      #   branch: main
       - 'node-sources.json'
       - 'cargo-sources.json'
       - type: file
@@ -107,19 +108,33 @@ modules:
           - mkdir .cargo
           - cp cargo/config .cargo
     build-commands:
+      # Switch to tag if we're using the main repo
+      - git remote -v | grep loft-sh && git checkout tags/v"${DEVPOD_VERSION}" || :
+      # Setup devpod-cli
       - chmod +x ./hack/rebuild.sh
-      - BUILD_PLATFORMS=linux SKIP_INSTALL=1 RELEASE_VERSION=v0.5.12 ./hack/rebuild.sh
+      - BUILD_PLATFORMS=linux SKIP_INSTALL=1 RELEASE_VERSION=v${DEVPOD_VERSION} ./hack/rebuild.sh
+      # Setup yarn dependencies offline
       - cd desktop && HOME=$PWD yarn config --offline set yarn-offline-mirror $FLATPAK_BUILDER_BUILDDIR/flatpak-node/yarn-mirror
       - cd desktop && yarn --offline
+      # Setup cargo dependencies offline
       - cd desktop && cargo fetch --offline --frozen --locked --manifest-path src-tauri/Cargo.toml
+      # Set GUI version
+      - cd desktop &&  yarn version --new-version $DEVPOD_VERSION --no-git-tag-version
+      # Build phase:
+      #   - build tauri's deb
+      #   - extract deb's content into /app/bin
+      #   - extract icons and launchers
       - cd desktop && yarn run tauri build --config src-tauri/tauri-linux.conf.json -b deb --target x86_64-unknown-linux-gnu
-      - install -Dm755 -t /app/bin/ desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/deb/*/data/usr/bin/*
+      - install -Dm755 -t /app/bin/ desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/deb/*$DEVPOD_VERSION*/data/usr/bin/*
       - mkdir -p /app/share/icons/hicolor /app/share/applications/
-      - cp -r desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/deb/*/data/usr/share/icons/hicolor/* /app/share/icons/hicolor/
-      - cp desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/deb/*/data/usr/share/applications/* /app/share/applications/sh.loft.devpod.desktop
+      - cp -r desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/deb/*$DEVPOD_VERSION*/data/usr/share/icons/hicolor/* /app/share/icons/hicolor/
+      - cp desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/deb/*$DEVPOD_VERSION*/data/usr/share/applications/* /app/share/applications/sh.loft.devpod.desktop
       - mv /app/share/icons/hicolor/256x256@2/ /app/share/icons/hicolor/256x256/
+      # And we inject the URL handler, and metadata
+      - install -Dm644 -t /app/share/applications/ sh.loft.devpod.handler.desktop
+      - install -Dm644 -t /app/share/metainfo/ sh.loft.devpod.appdata.xml
+      # Here we will move the original devpod-cli away, so that it can be replaced
+      # by our wrapper, so that it can work with flatpak-spawn --host
       - mv /app/bin/devpod-cli /app/bin/devpod-bin
       - cp devpod-wrapper /app/bin/devpod-cli
       - chmod +x /app/bin/devpod-cli
-      - install -Dm644 -t /app/share/applications/ sh.loft.devpod.handler.desktop
-      - install -Dm644 -t /app/share/metainfo/ sh.loft.devpod.appdata.xml
