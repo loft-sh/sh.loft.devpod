@@ -14,7 +14,7 @@ install:
 	pipx install "git+https://github.com/flatpak/flatpak-builder-tools.git#egg=flatpak_node_generator&subdirectory=node"
 	wget -N https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/master/cargo/flatpak-cargo-generator.py
 	python3 -m venv .pyenv
-	sh -c ". .pyenv/bin/activate && pip install aiohttp toml"
+	sh -c ". .pyenv/bin/activate && python3 -m pip install aiohttp toml"
 
 sources:
 	sh -c ". .pyenv/bin/activate && python3 flatpak-cargo-generator.py -o cargo-sources.json ../devpod/desktop/src-tauri/Cargo.lock"
