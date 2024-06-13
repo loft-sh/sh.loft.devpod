@@ -88,13 +88,14 @@ modules:
       env:
         CARGO_HOME: /run/build/devpod/cargo
         npm_config_offline: 'true'
-        DEVPOD_VERSION: "0.5.12"
+        DEVPOD_VERSION: "0.5.15"
+        TAURI_IS_FLATPAK: "true"
     sources:
-      - type: dir
-        path: "../devpod"
-      # - type: git
-      #   url: https://github.com/loft-sh/devpod
-      #   branch: main
+      # - type: dir
+      #   path: "../devpod"
+      - type: git
+        url: https://github.com/loft-sh/devpod
+        branch: main
       - 'node-sources.json'
       - 'cargo-sources.json'
       - type: file
@@ -121,9 +122,9 @@ modules:
       # Set GUI version
       - cd desktop &&  yarn version --new-version $DEVPOD_VERSION --no-git-tag-version
       # Build phase:
-      #   - build tauri's deb
-      #   - extract deb's content into /app/bin
-      #   - extract icons and launchers
+      #   * build tauri's deb
+      #   * extract deb's content into /app/bin
+      #   * extract icons and launchers
       - cd desktop && yarn run tauri build --config src-tauri/tauri-linux.conf.json -b deb --target x86_64-unknown-linux-gnu
       - install -Dm755 -t /app/bin/ desktop/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/deb/*$DEVPOD_VERSION*/data/usr/bin/*
       - mkdir -p /app/share/icons/hicolor /app/share/applications/
